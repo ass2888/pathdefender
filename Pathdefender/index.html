@@ -1,0 +1,2410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Path Defender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <!-- PWA: Link to manifest.json -->
+    <link rel="manifest" href="/manifest.json">
+    <!-- PWA: Theme color for browser UI -->
+    <meta name="theme-color" content="#1a202c">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling */
+            background-color: #1a202c; /* Dark background */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh; /* Ensure body takes full viewport height */
+            color: #e2e8f0; /* Light text */
+            -webkit-user-select: none; /* Disable text selection */
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        h1 {
+            padding-top: 20px;
+            padding-bottom: 5px; /* Reduced bottom padding as button is next */
+            width: 100%; /* Ensure it takes full width */
+            text-align: center;
+        }
+        .game-container {
+            position: relative; /* For absolute positioning of info-bar */
+            flex-grow: 1; /* This is the key: it fills all available space */
+            width: 100vw; /* Take full viewport width */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* Hide anything that spills out */
+            margin-top: 10px; /* Space between button and canvas */
+        }
+        canvas {
+            background-color: #334155; /* Darker blue-gray for map */
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            touch-action: none; /* Prevent browser default touch actions like scrolling */
+            display: block;
+            border: 2px solid #6366f1; /* Purple border */
+            /* Canvas dimensions will be set by JS to fill its parent (.game-container) */
+        }
+        .info-bar {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
+            border-radius: 10px;
+            padding: 10px 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            z-index: 100; /* Ensure it's above canvas */
+            border: 1px solid #4a5568;
+        }
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .info-label {
+            color: #cbd5e0; /* Gray-200 */
+            margin-right: 8px;
+        }
+        .info-value {
+            color: #81e6d9; /* Teal-300 */
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        .control-panel {
+            @apply flex flex-col items-center w-full p-4 bg-gray-800 rounded-t-lg shadow-lg;
+            border-top: 1px solid #4a5568;
+            z-index: 200; /* Ensure it's above other elements */
+        }
+        /* .tower-selection is removed */
+        .tower-icon {
+            @apply flex flex-col items-center p-2 bg-gray-700 rounded-md cursor-pointer transition-all duration-200;
+            border: 2px solid transparent;
+        }
+        .tower-icon.selected {
+            border-color: #6366f1; /* Purple border when selected */
+            background-color: #4a5568;
+        }
+        .tower-icon:hover {
+            background-color: #4a5568;
+        }
+        .tower-icon-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background-color: #2d3748;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .tower-icon-text {
+            @apply text-xs mt-1 text-gray-300;
+        }
+        .btn {
+            @apply px-6 py-3 rounded-full text-lg font-bold transition-all duration-300 ease-in-out shadow-lg;
+            background-image: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+        }
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+        }
+        /* Message Box removed as per request */
+        .context-menu {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.85);
+            border-radius: 10px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            border: 1px solid #6366f1;
+        }
+        .context-menu-btn {
+            @apply px-3 py-1 text-sm rounded-md transition-colors duration-200;
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border: 1px solid #6366f1;
+        }
+        .context-menu-btn:hover {
+            background-color: #6366f1;
+        }
+        /* Removed .tower-info-display styles as it's being removed */
+
+        /* NEW: Styles for Upgrade/Sell buttons - truly square with content centered */
+        .tower-action-buttons {
+            @apply flex justify-center gap-4 mt-2; /* Horizontal layout, increased spacing */
+        }
+        .action-btn-square {
+            position: relative;
+            flex-shrink: 0; 
+            flex-grow: 0; 
+            width: 50px; /* Smaller size */
+            height: 50px; /* Smaller size */
+            border-radius: 0.375rem; /* Equivalent to rounded-md */
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border: 1px solid #6366f1;
+            overflow: hidden; /* Important for containing absolute child */
+            transition: background-color 0.2s; /* Apply transition directly */
+            cursor: pointer;
+        }
+        .action-btn-square .content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Center horizontally */
+            justify-content: space-between; /* Push cost to top, label to bottom */
+            padding: 4px 2px; /* Vertical padding adjusted, horizontal padding for text */
+            box-sizing: border-box;
+        }
+        .action-btn-square .cost-display {
+            font-size: 1.1rem; /* Smaller text-2xl */
+            font-weight: 700; /* font-bold */
+            line-height: 1; 
+        }
+        .action-btn-square .label-display {
+            font-size: 0.6rem; /* Smaller text-xs */
+            line-height: 1; /* Adjust line height for label */
+            text-align: center; /* Center the label text */
+            margin-bottom: 0px; /* Ensure no extra space at the bottom */
+        }
+
+        .action-btn-square:hover:not(:disabled) {
+            background-color: #6366f1;
+        }
+        .action-btn-square:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #2d3748;
+        }
+
+
+        .game-over-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            color: white;
+            text-align: center;
+        }
+        .game-over-overlay h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #ef4444; /* Red for Game Over */
+        }
+        .game-over-overlay h2.win {
+            color: #22c55e; /* Green for Win */
+        }
+        .game-over-overlay p {
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        /* New style for wave status display */
+        #wave-status-display {
+            @apply text-2xl font-bold text-center mt-2 mb-4;
+            color: #81e6d9; /* Teal-300 */
+        }
+
+        /* Life Bar styles - CHANGED TO FIXED POSITION and explicit sizes */
+        #life-bar-container {
+            position: fixed; /* Make it always visible */
+            bottom: 20px; /* Position from the bottom */
+            width: 80%; /* Width relative to viewport */
+            left: 10%; /* Center horizontally */
+            height: 24px; /* Explicit height */
+            background-color: #4a5568; /* Darker gray background for the bar container */
+            border-radius: 9999px; /* Full rounded corners */
+            overflow: hidden; /* Hide overflow of the fill */
+            border: 2px solid #ef4444; /* Red border */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5); /* Add shadow for depth */
+            z-index: 1000; /* Ensure it's on top */
+        }
+        #life-bar-fill {
+            height: 100%; /* Fill full height of container */
+            background-color: #ef4444; /* Red fill color */
+            /* No transition for instant fill */
+        }
+        /* NEW: Lives count *above* life bar */
+        #current-lives-count {
+            position: fixed; /* Fixed position relative to viewport */
+            bottom: calc(20px + 24px + 8px); /* Bar bottom + bar height + slightly more gap */
+            left: 10%; /* Align with life bar start */
+            font-size: 0.9rem; /* Slightly larger font size for visibility */
+            font-weight: bold;
+            color: #ffffff; /* White color */
+            z-index: 1001; /* Ensure it's above the bar */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7); /* Add shadow for readability */
+        }
+
+
+        /* NEW: Styles for Level Selection Buttons - Made more square and centered text */
+        #level-selection-overlay {
+            background-color: #1a202c; /* Solid dark background for level select */
+        }
+        #level-buttons-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem; /* Increased spacing */
+            max-width: 600px; /* Wider limit */
+            width: 90%; /* Responsive width */
+            padding: 2rem; /* Increased padding */
+            border-radius: 15px; /* More rounded */
+            background-color: rgba(45, 55, 72, 0.9); /* Dark background with slight transparency */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+
+        #level-buttons-container .level-btn-square {
+            position: relative;
+            display: flex; /* Use flex to control content within */
+            align-items: center;
+            justify-content: center; /* Center horizontally */
+            border-radius: 0.5rem; /* rounded-lg */
+            transition: all 0.3s ease-in-out; /* transition-all duration-300 ease-in-out */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* shadow-lg */
+            background-image: linear-gradient(to right, #6a11cb 0%, #2575fc 100%);
+            border: none;
+            color: white;
+            cursor: pointer;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* Ensure text is always visible */
+
+            /* Forcing square aspect ratio */
+            width: 100%;
+            padding-bottom: 100%; /* This makes the height equal to the width */
+            overflow: hidden; /* Hide anything that spills out from the padding trick */
+        }
+        /* Adjusted .content to ensure perfect centering */
+        #level-buttons-container .level-btn-square .content {
+            position: absolute;
+            top: 0; /* Align to top */
+            left: 0; /* Align to left */
+            width: 100%; /* Take full width */
+            height: 100%; /* Take full height */
+            display: flex; /* Use flexbox for inner centering */
+            align-items: center; /* Center content vertically */
+            justify-content: center; /* Center content horizontally */
+            font-size: 3.75rem; /* text-6xl for large font, adjusted slightly for fit */
+            font-weight: 700; /* font-bold */
+        }
+
+        #level-buttons-container .level-btn-square:hover:not(:disabled) {
+            transform: translateY(-4px); /* More pronounced hover */
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+        }
+        #level-buttons-container .level-btn-square:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        #level-buttons-container .level-btn-square:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-image: linear-gradient(to right, #4a5568 0%, #2d3748 100%); /* Different gradient for disabled */
+        }
+
+        /* Pause Button and Overlay Styles */
+        #pause-btn {
+            @apply absolute top-4 left-4 z-50 px-4 py-2 bg-gray-700 text-white rounded-md shadow-lg hover:bg-gray-600 transition-colors;
+        }
+
+        #pause-overlay {
+            background-color: rgba(0, 0, 0, 0.85); /* Darker, more opaque background */
+            z-index: 1000; /* Ensure it's above everything else */
+        }
+
+        /* NEW: Start Menu Overlay Styles */
+        #start-menu-overlay {
+            background-color: #1a202c; /* Solid dark background for start menu */
+            z-index: 1001; /* Ensure it's on top of everything else */
+        }
+        #start-menu-overlay h2 {
+            font-size: 4rem; /* Larger title */
+            margin-bottom: 2rem;
+            background-image: linear-gradient(to right, #a78bfa 0%, #38bdf8 100%); /* Purple to blue gradient */
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); /* Add text shadow for depth */
+        }
+        #start-menu-overlay .btn {
+            padding: 1.25rem 3rem; /* Larger button */
+            font-size: 1.8rem; /* Larger font */
+        }
+
+        /* NEW: Styles for Tower Placement Context Menu Buttons */
+        .placement-context-menu-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Two columns for tower types */
+            gap: 10px; /* Space between buttons */
+            padding-top: 5px; /* Space from title */
+        }
+        .placement-context-menu-buttons .action-btn-square {
+            width: 70px; /* Slightly larger than action-btn-square but smaller than before */
+            height: 70px; /* Make it square */
+            font-size: 1.1rem; /* Adjust font size for cost */
+        }
+        .placement-context-menu-buttons .action-btn-square .cost-display {
+            font-size: 1.5rem; /* Larger cost display */
+        }
+        .placement-context-menu-buttons .action-btn-square .label-display {
+            font-size: 0.75rem; /* Slightly larger label */
+        }
+
+        /* NEW: Level Info Overlay Styles */
+        #level-info-overlay {
+            position: absolute; /* Changed to absolute for transition */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(26, 32, 44, 0.95); /* Darker, more opaque background */
+            z-index: 1002; /* Ensure it's above everything */
+            padding: 2rem;
+            display: flex; /* Added flex for centering content */
+            flex-direction: column; /* Stack content vertically */
+            justify-content: center; /* Center content vertically */
+            align-items: center; /* Center content horizontally */
+            transform: translateY(100%); /* Start off-screen at the bottom */
+            transition: transform 0.5s ease-out; /* Smooth transition for sliding up */
+        }
+        #level-info-overlay.slide-in {
+            transform: translateY(0%); /* Slide in to center */
+        }
+        #level-info-overlay.slide-out {
+            transform: translateY(100%); /* Slide out to the bottom */
+        }
+
+        #level-info-overlay .info-box {
+            background-color: rgba(45, 55, 72, 0.9);
+            border-radius: 15px;
+            padding: 1.5rem;
+            max-width: 700px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            margin-bottom: 1.5rem;
+            text-align: left; /* Align text to left inside the box */
+        }
+        #level-info-overlay .info-box h3 {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #6366f1; /* Purple heading */
+            margin-bottom: 1rem;
+            text-align: center; /* Center the heading */
+        }
+        #level-info-overlay .info-box ul {
+            list-style: none; /* Remove default list style */
+            padding: 0; /* Remove default padding */
+            font-size: 1.1rem;
+            color: #cbd5e0;
+        }
+        #level-info-overlay .info-box li {
+            margin-bottom: 0.75rem; /* More space between items */
+            display: flex; /* Use flexbox for icon and text alignment */
+            align-items: center; /* Vertically center content */
+            gap: 10px; /* Space between icon and text */
+        }
+        #level-info-overlay .info-box .feature-icon-svg {
+            width: 40px; /* Fixed width for SVG container */
+            height: 40px; /* Fixed height for SVG container */
+            flex-shrink: 0; /* Prevent SVG from shrinking */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #2d3748; /* Dark background for the icon area */
+            border-radius: 8px; /* Rounded corners for the icon area */
+        }
+        #level-info-overlay .info-box strong {
+            color: #81e6d9; /* Teal for emphasis */
+        }
+        #level-info-overlay .level-info-ok-btn {
+            @apply px-10 py-5 rounded-full text-2xl font-bold transition-all duration-300 ease-in-out shadow-lg; /* Larger OK button */
+            background-image: linear-gradient(to right, #22c55e 0%, #10b981 100%); /* Green gradient for OK button */
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+        #level-info-overlay .level-info-ok-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.6);
+        }
+        #level-info-overlay .level-info-ok-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Screen Shake Effect */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .shake-effect {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+            transform: translate3d(0, 0, 0);
+                      backface-visibility: hidden;
+                       perspective: 1000px;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- Start Menu Overlay -->
+    <div id="start-menu-overlay" class="game-over-overlay">
+        <h2 class="font-bold">Path Defender</h2>
+        <button id="start-game-btn" class="btn">Start Game</button>
+    </div>
+
+    <button id="pause-btn" class="hidden">Pause</button>
+
+    <!-- Game title removed from here as requested -->
+    <h1 id="game-title" class="hidden"></h1>
+
+    <!-- Wave Status Display -->
+    <div id="wave-status-display" class="hidden"></div>
+
+    <!-- Level Selection Overlay -->
+    <div id="level-selection-overlay" class="game-over-overlay hidden">
+        <h2 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mb-6">Select Level</h2>
+        <div id="level-buttons-container" class="flex flex-wrap justify-center gap-4">
+            <!-- Level buttons will be generated here by JS -->
+        </div>
+    </div>
+
+    <!-- Level Info Overlay -->
+    <div id="level-info-overlay" class="hidden"> <!-- Hidden initially, will be shown with transition -->
+        <div class="info-box">
+            <h3 id="level-info-title"></h3>
+            <ul id="level-info-features">
+                <!-- Features will be populated here -->
+            </ul>
+        </div>
+        <button id="level-info-ok-btn" class="level-info-ok-btn">OK</button>
+    </div>
+
+    <!-- Money Progress Bar -->
+    <div id="progress-bar-container" class="w-full flex justify-center my-4 hidden">
+        <div class="relative w-4/5 h-8 bg-gray-700 rounded-full overflow-hidden border-2 border-red-700"> <!-- Increased height, changed border color -->
+            <div id="money-progress-bar" class="absolute h-full bg-red-500" style="width: 0%;"></div> <!-- Changed background color, removed transition -->
+            <span class="absolute inset-0 flex items-center justify-center text-sm font-semibold text-white z-10">Money Progress</span> <!-- Adjusted text size -->
+        </div>
+    </div>
+
+    <div id="game-container" class="game-container hidden">
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="info-bar">
+            <div class="info-item">
+                <span class="info-label">Level:</span>
+                <span id="level-display" class="info-value">1</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Money:</span>
+                <span id="money-display" class="info-value">$0</span>
+            </div>
+            <!-- Lives display is now a bar, so this text element is hidden -->
+            <div class="info-item hidden">
+                <span class="info-label">Lives:</span>
+                <span id="lives-display" class="info-value">10</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Wave:</span>
+                <span id="wave-display" class="info-value">0/0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control panel is kept, but tower-selection content is removed -->
+    <div id="control-panel" class="control-panel hidden">
+        <!-- Tower selection buttons are removed from here -->
+    </div>
+
+    <!-- Game Over / Win Overlay (hidden by default) -->
+    <div id="game-over-overlay" class="game-over-overlay hidden">
+        <h2 id="game-over-title"></h2>
+        <p id="game-over-message"></p>
+        <button id="restart-game-btn" class="btn">Play Again</button>
+    </div>
+
+    <!-- Life Bar (NEW) - MOVED TO BE DIRECT CHILD OF BODY FOR FIXED POSITIONING -->
+    <span id="current-lives-count" class="hidden">10</span> <!-- NEW: Lives count display moved outside -->
+    <div id="life-bar-container" class="hidden">
+        <div id="life-bar-fill" style="width: 100%;"></div>
+    </div>
+
+    <!-- NEW: Pause Overlay -->
+    <div id="pause-overlay" class="game-over-overlay hidden">
+        <h2 class="text-3xl font-bold text-white mb-6">Game Paused</h2>
+        <button id="resume-btn" class="btn mb-4">Resume</button>
+        <button id="exit-game-btn" class="btn bg-red-600 hover:bg-red-700">Exit to Main Menu</button>
+    </div>
+
+    <script>
+        // --- Game Setup and Configuration ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Get references to main layout elements
+        const gameTitle = document.getElementById('game-title');
+        const gameContainer = document.getElementById('game-container');
+        const controlPanel = document.getElementById('control-panel');
+        const moneyProgressBar = document.getElementById('money-progress-bar'); // Reference for new progress bar
+        const lifeBarFill = document.getElementById('life-bar-fill'); // Reference for new life bar fill
+        const currentLivesCount = document.getElementById('current-lives-count'); // NEW: Lives count span
+        const progressBarContainer = document.getElementById('progress-bar-container'); // NEW: Reference to the progress bar container
+
+        // Pause menu elements
+        const pauseBtn = document.getElementById('pause-btn');
+        const pauseOverlay = document.getElementById('pause-overlay');
+        const resumeBtn = document.getElementById('resume-btn');
+        const exitGameBtn = document.getElementById('exit-game-btn');
+
+
+        // Max grid dimensions for the canvas - all paths must fit within this conceptual grid
+        const MAX_GRID_COLS = 20;
+        const MAX_GRID_ROWS = 15;
+        let TILE_SIZE; // Will be calculated dynamically
+        let CANVAS_WIDTH;
+        let CANVAS_HEIGHT;
+
+        // Game state variables
+        let money = 0;
+        let lives = 0;
+        let initialLives = 0; // To store starting lives for percentage calculation
+        let currentLevelIndex = 0;
+        let currentWaveIndex = 0;
+        let towers = [];
+        let enemies = [];
+        let projectiles = [];
+        let visualEffects = []; // NEW: Array to manage visual effects
+        let selectedTowerType = null; // This will now mainly be for visual feedback in the control panel
+        let gameRunning = false; // Controls if game loop updates elements
+        let waveInProgress = false; // Controls if enemies are moving/towers shooting
+        let animationFrameId;
+        let lastUpdateTime = 0;
+        let activeSelectedTower = null; // Currently selected tower for upgrade/sell
+        let selectedGridCell = null; // For indicating where a new tower might be placed
+        let waveDelayTimeout = null; // To hold the timeout for next wave
+        let initialWaveCountdownInterval = null; // To hold the interval for initial countdown
+
+        // NEW: Wave synchronization counters
+        let enemiesRemainingToSpawnInCurrentWave = 0; // Counts down as enemies are spawned
+        let enemiesAliveFromCurrentWave = 0; // Counts enemies currently alive on the map from the current wave
+
+        // Progress bar variables
+        let currentMoneyProgressBarFill = 0; // Ranges from 0 to 100
+        const PROGRESS_TIME_RATE = 15; // Percentage points per second
+        const PROGRESS_KILL_RATE = 20; // Percentage points per enemy kill
+        const MONEY_PER_BAR = 1; // Money granted when bar fills
+
+        // UI elements
+        const moneyDisplay = document.getElementById('money-display');
+        const livesDisplay = document.getElementById('lives-display'); // This will be hidden, but keeping reference for consistency
+        const waveDisplay = document.getElementById('wave-display');
+        const levelDisplay = document.getElementById('level-display');
+        const towerSelectionPanel = document.querySelector('.tower-selection'); // This will be empty
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const restartGameBtn = document.getElementById('restart-game-btn');
+        // New wave status display element
+        const waveStatusDisplay = document.getElementById('wave-status-display');
+
+
+        // NEW UI element references for Level Selection
+        const levelSelectionOverlay = document.getElementById('level-selection-overlay');
+        const levelButtonsContainer = document.getElementById('level-buttons-container');
+        const LAST_LEVEL_KEY = 'pathDefenderLastLevel'; // localStorage key for saving progress
+        let maxUnlockedLevelIndex = 0; // Tracks the highest level index unlocked by the player
+
+        // NEW UI element references for Start Menu
+        const startMenuOverlay = document.getElementById('start-menu-overlay');
+        const startGameBtn = document.getElementById('start-game-btn');
+
+        // NEW UI element references for Level Info Overlay
+        const levelInfoOverlay = document.getElementById('level-info-overlay');
+        const levelInfoTitle = document.getElementById('level-info-title');
+        const levelInfoFeatures = document.getElementById('level-info-features');
+        const levelInfoOkBtn = document.getElementById('level-info-ok-btn');
+
+
+        // --- Game Data: Towers, Enemies, Levels ---
+
+        const TOWER_TYPES = {
+            BASIC: {
+                name: 'Basic',
+                cost: 1,
+                damage: 10,
+                range: 100,
+                fireRate: 500, // ms between shots
+                color: '#3b82f6', // Blue color for Basic tower
+                upgradeCostL2: 1,
+                upgradeCostL3: 2,
+                upgradeDamageL2: 15, upgradeRangeL2: 120, upgradeFireRateL2: 400,
+                upgradeDamageL3: 20, upgradeRangeL3: 140, upgradeFireRateL3: 350,
+                icon: '🎯',
+                projectileSpeed: 0.5, // Standard projectile speed
+                projectileColor: '#FFD700', // Gold color for projectiles
+                projectileRadius: 3 // Default projectile radius
+            },
+            // NEW TOWER: TESLA
+            TESLA: {
+                name: 'Tesla',
+                cost: 2,
+                damage: 8,
+                range: 120,
+                fireRate: 600, // Slower firing speed (increased from 300)
+                color: '#FFD700', // Gold/Yellow for electricity
+                icon: '⚡',
+                jumpCount: 2, // Number of additional jumps after first target
+                upgradeCostL2: 2,
+                upgradeCostL3: 3,
+                // Level 2 upgrades: Increase damage and jump count
+                upgradeDamageL2: 12,
+                upgradeRangeL2: 130, // Slight range increase
+                upgradeFireRateL2: 540, // Slower fire rate for L2 (increased from 270)
+                upgradeJumpCountL2: 3, // Increased jumps
+                // Level 3 upgrades: Significant increase in damage, range, and jump count
+                upgradeDamageL3: 25, // Significant damage boost
+                upgradeRangeL3: 180, // Significant range boost
+                upgradeFireRateL3: 440, // Slower fire rate for L3 (increased from 220)
+                upgradeJumpCountL3: 5, // Significant jump count
+                projectileSpeed: 0.2, // Reverted to previous projectile speed (from 0.1 to 0.2)
+                projectileColor: '#00BFFF', // Blue color for Tesla projectile
+                projectileRadius: 3 // Default projectile radius
+            },
+            // NEW TOWER: CATAPULT
+            CATAPULT: {
+                name: 'Catapult',
+                cost: 4,
+                damage: 15, // Slightly higher than Basic
+                range: 180, // High range
+                fireRate: 1000, // 1 second (slow)
+                color: '#000000', // Black color for Catapult
+                icon: '🪨',
+                splashRadiusTiles: 1.5, // Now a multiplier for TILE_SIZE
+                upgradeCostL2: 4,
+                upgradeCostL3: 5,
+                // Level 2 upgrades
+                upgradeDamageL2: 20,
+                upgradeRangeL2: 200,
+                upgradeFireRateL2: 900,
+                upgradeSplashRadiusL2: 2, // Multiplier
+                // Level 3 upgrades
+                upgradeDamageL3: 30,
+                upgradeRangeL3: 220,
+                upgradeFireRateL3: 800,
+                upgradeSplashRadiusL3: 2.5, // Multiplier
+                projectileSpeed: 0.15, // Slower projectile speed for visual effect
+                projectileColor: '#000000', // Changed to black for projectile (rock)
+                projectileRadius: 10 // Larger projectile radius
+            }
+        };
+
+        const ENEMY_TYPES = {
+            NORMAL: {
+                name: 'Normal',
+                health: 100,
+                speed: 0.05, // pixels per ms
+                reward: 1,
+                color: '#E91E63', // Pink
+                size: 15
+            },
+            // NEW ENEMY: FAST
+            FAST: {
+                name: 'Fast',
+                health: 70,
+                speed: 0.08, // Faster
+                reward: 1.2,
+                color: '#8BC34A', // Light Green
+                size: 12 // Smaller
+            },
+            // NEW ENEMY: TANK
+            TANK: {
+                name: 'Tank',
+                health: 250, // High health
+                speed: 0.03, // Slower
+                reward: 2,
+                color: '#607D8B', // Blue Gray
+                size: 20 // Larger
+            }
+        };
+
+        const LEVELS = [
+            {
+                name: "Grassy Plains",
+                startingMoney: 3,
+                startingLives: 5,
+                path: [
+                    { x: -0.5, y: 5.5 }, // Start from left edge (half a tile off-canvas)
+                    { x: 3.5, y: 5.5 }, { x: 3.5, y: 2.5 }, { x: 6.5, y: 2.5 },
+                    { x: 6.5, y: 7.5 }, { x: 9.5, y: 7.5 }, { x: 9.5, y: 4.5 }, { x: 12.5, y: 4.5 },
+                    { x: 12.5, y: 9.5 },
+                    { x: MAX_GRID_COLS - 0.5, y: 9.5 } // End at right edge (half a tile off-canvas)
+                ],
+                // Tower placement spots adjusted to be roughly one square away from the path
+                towerPlacementSpots: [
+                    {x:2, y:1}, {x:5, y:4}, {x:8, y:6}, {x:11, y:3}
+                ],
+                waves: [ // 3 waves, increased counts
+                    [{ type: 'NORMAL', count: 10, delay: 1000 }], // Decreased from 15
+                    [{ type: 'NORMAL', count: 20, delay: 800 }],
+                    [{ type: 'NORMAL', count: 25, delay: 700 }]
+                ],
+                newFeatures: [
+                    { type: 'tower', key: 'BASIC', text: `New Tower: <strong>Basic Tower</strong> ($1) - A simple, reliable tower.` },
+                    { type: 'enemy', key: 'NORMAL', text: `New Enemy: <strong>Normal Enemy</strong> - Standard threat.` }
+                ]
+            },
+            {
+                name: "Desert Sands",
+                startingMoney: 5,
+                startingLives: 5,
+                path: [
+                    { x: -0.5, y: 2.5 }, // Start from left edge (half a tile off-canvas)
+                    { x: 2.5, y: 2.5 }, { x: 2.5, y: 7.5 }, { x: 7.5, y: 7.5 },
+                    { x: 7.5, y: 0.5 }, { x: 10.5, y: 0.5 }, { x: 10.5, y: 5.5 },
+                    { x: MAX_GRID_COLS - 0.5, y: 5.5 } // End at right edge (half a tile off-canvas)
+                ],
+                // Tower placement spots adjusted to be roughly one square away from the path
+                towerPlacementSpots: [
+                    {x:1, y:6}, {x:4, y:4}, {x:6, y:1}, {x:9, y:3}, {x:12, y:7}
+                ],
+                waves: [ // 3 waves, increased counts
+                    [{ type: 'NORMAL', count: 15, delay: 700 }], // Decreased from 20
+                    [{ type: 'NORMAL', count: 25, delay: 600 }],
+                    [{ type: 'NORMAL', count: 30, delay: 500 }]
+                ],
+                newFeatures: [
+                    { type: 'tower', key: 'TESLA', text: `New Tower: <strong>Tesla Tower</strong> ($2) - Chains lightning to multiple enemies!` }
+                ]
+            },
+            // NEW LEVEL 3: Forest Trails - Introduces FAST enemies
+            {
+                name: "Forest Trails",
+                startingMoney: 7,
+                startingLives: 5,
+                path: [
+                    { x: -0.5, y: 7.5 }, { x: 5.5, y: 7.5 }, { x: 5.5, y: 12.5 }, { x: 10.5, y: 12.5 },
+                    { x: 10.5, y: 3.5 }, { x: 15.5, y: 3.5 },
+                    { x: MAX_GRID_COLS - 0.5, y: 3.5 }
+                ],
+                // Tower placement spots adjusted to be roughly one square away from the path
+                towerPlacementSpots: [
+                    {x:4, y:6}, {x:7, y:11}, {x:9, y:2}, {x:12, y:10}, {x:14, y:4}
+                ],
+                waves: [ // 3 waves, mix of Normal and Fast, increased numbers
+                    [{ type: 'NORMAL', count: 10, delay: 600 }, {type: 'FAST', count: 8, delay: 800}], // Decreased from 15, 12
+                    [{ type: 'NORMAL', count: 20, delay: 500 }, {type: 'FAST', count: 15, delay: 700}],
+                    [{ type: 'NORMAL', count: 25, delay: 400 }, {type: 'FAST', count: 20, delay: 600}]
+                ],
+                newFeatures: [
+                    { type: 'enemy', key: 'FAST', text: `New Enemy: <strong>Fast Enemy</strong> - Smaller, but moves quickly!` }
+                ]
+            },
+            // NEW LEVEL 4: Mountain Pass - Introduces TANK enemies
+            {
+                name: "Mountain Pass",
+                startingMoney: 10,
+                startingLives: 5,
+                path: [
+                    { x: 0.5, y: -0.5 }, { x: 0.5, y: 3.5 }, { x: 4.5, y: 3.5 }, { x: 4.5, y: 8.5 },
+                    { x: 8.5, y: 8.5 }, { x: 8.5, y: 1.5 }, { x: 12.5, y: 1.5 }, { x: 12.5, y: 10.5 },
+                    { x: 16.5, y: 10.5 }, { x: 16.5, y: 5.5 },
+                    { x: MAX_GRID_COLS - 0.5, y: 5.5 }
+                ],
+                // Tower placement spots adjusted to be roughly one square away from the path
+                towerPlacementSpots: [
+                    {x:2, y:0}, {x:3, y:2}, {x:6, y:7}, {x:7, y:0}, {x:10, y:9}, {x:11, y:2}, {x:14, y:11}, {x:15, y:4}
+                ],
+                waves: [ // 3 waves, mix of Normal, Fast, and Tank, increased numbers
+                    [{ type: 'NORMAL', count: 15, delay: 500 }, {type: 'FAST', count: 10, delay: 400}, {type: 'TANK', count: 3, delay: 3000}], // Decreased from 20, 15, 5
+                    [{ type: 'NORMAL', count: 25, delay: 450 }, {type: 'FAST', count: 20, delay: 350}, {type: 'TANK', count: 8, delay: 2500}],
+                    [{ type: 'NORMAL', count: 30, delay: 400 }, {type: 'FAST', count: 25, delay: 300}, {type: 'TANK', count: 10, delay: 2000}]
+                ],
+                newFeatures: [
+                    { type: 'tower', key: 'CATAPULT', text: `New Tower: <strong>Catapult Tower</strong> ($4) - Deals splash damage to groups of enemies!` },
+                    { type: 'enemy', key: 'TANK', text: `New Enemy: <strong>Tank Enemy</strong> - Slow but has massive health!` }
+                ]
+            },
+            // NEW LEVEL 5: Ancient Ruins (no new enemy type)
+            {
+                name: "Ancient Ruins",
+                startingMoney: 12,
+                startingLives: 5,
+                path: [
+                    { x: -0.5, y: 12.5 }, { x: 1.5, y: 12.5 }, { x: 1.5, y: 0.5 }, { x: 6.5, y: 0.5 },
+                    { x: 6.5, y: 10.5 }, { x: 11.5, y: 10.5 }, { x: 11.5, y: 3.5 }, { x: 16.5, y: 3.5 },
+                    { x: MAX_GRID_COLS - 0.5, y: 3.5 }
+                ],
+                // Tower placement spots adjusted to be roughly one square away from the path
+                towerPlacementSpots: [
+                    {x:2, y:1}, {x:2, y:11}, {x:7, y:1}, {x:7, y:12}, {x:13, y:4}, {x:15, y:2}
+                ],
+                waves: [
+                    [{ type: 'NORMAL', count: 20, delay: 400 
+                    }, {type: 'FAST', count: 15, delay: 300}],
+                    [{ type: 'NORMAL', count: 25, delay: 350 }, {type: 'FAST', count: 20, delay: 250}, {type: 'TANK', count: 5, delay: 2000}],
+                    [{ type: 'NORMAL', count: 30, delay: 300 }, {type: 'FAST', count: 25, delay: 200}, {type: 'TANK', count: 8, delay: 1500}],
+                    [{ type: 'TANK', count: 12, delay: 1200 }] // A final Tank-heavy wave
+                ],
+                newFeatures: [
+                    "The final challenge! All enemy types will appear.",
+                    "Master your tower placements to survive!"
+                ]
+            }
+        ];
+
+        // --- Game Classes ---
+
+        class Tower {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.gridX = Math.floor(x / TILE_SIZE);
+                this.gridY = Math.floor(y / TILE_SIZE);
+                this.type = type;
+                this.level = 1;
+                this.cost = type.cost;
+                this.damage = type.damage;
+                this.range = type.range;
+                this.fireRate = type.fireRate;
+                this.lastShotTime = 0;
+                this.color = type.color;
+                this.isUpgrading = false; // Flag for UI
+                this.slowFactor = type.slowFactor || 0;
+                this.slowDuration = type.slowDuration || 0;
+                // Calculate splashRadius based on TILE_SIZE if splashRadiusTiles is defined
+                this.splashRadius = type.splashRadiusTiles ? type.splashRadiusTiles * TILE_SIZE : 0;
+                this.chainCount = type.jumpCount || 0; // Initialize chainCount for Tesla Tower
+            }
+
+            draw() {
+                const centerX = this.x + TILE_SIZE / 2;
+                const centerY = this.y + TILE_SIZE / 2;
+                const baseSize = TILE_SIZE * 0.7; // Common base for shapes (now always a circle)
+
+                ctx.fillStyle = this.color;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+
+                // Always draw a circle for tower body
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, baseSize, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.closePath();
+
+
+                // Draw level indicator based on level
+                if (this.level === 2) {
+                    // Level 2: Larger white circle in the center (scaled proportionally to new tower size)
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, TILE_SIZE * 0.4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff'; // White
+                    ctx.fill();
+                    ctx.closePath();
+                } else if (this.level === 3) {
+                    // Level 3: White circle with a larger blue circle inside (scaled proportionally)
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, TILE_SIZE * 0.4, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff'; // White
+                    ctx.fill();
+                    ctx.closePath();
+
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, TILE_SIZE * 0.25, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color; // Tower's color
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                // Draw range circle if selected
+                if (activeSelectedTower === this) {
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, this.range, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+            }
+
+            update(deltaTime) {
+                const now = performance.now();
+                if (now - this.lastShotTime > this.fireRate) {
+                    const target = this.findTarget();
+                    if (target) {
+                        projectiles.push(new Projectile(
+                            this.x + TILE_SIZE / 2,
+                            this.y + TILE_SIZE / 2,
+                            target,
+                            this.damage,
+                            this.slowFactor,
+                            this.slowDuration,
+                            this.splashRadius,
+                            this.chainCount,
+                            this.type.projectileSpeed, // Pass projectile speed from tower type
+                            this.type.projectileColor, // Pass projectile color from tower type
+                            this.type.projectileRadius // Pass projectile radius from tower type
+                        ));
+                        this.lastShotTime = now;
+
+                        // NEW: Visual effect for shooting
+                        visualEffects.push(new VisualEffect('shoot', this.x + TILE_SIZE / 2, this.y + TILE_SIZE / 2, this.color, 15, 100));
+                        // TODO: Add tower shooting sound here
+                        // playSound('shoot');
+                    }
+                }
+            }
+
+            // Modified to find the enemy closest to the end of the path
+            findTarget() {
+                let furthestEnemy = null;
+                // Initialize with a value that ensures the first valid enemy becomes the target
+                let maxProgressAlongPath = -Infinity;
+
+                for (const enemy of enemies) {
+                    if (enemy.isAlive) {
+                        const towerCenter = { x: this.x + TILE_SIZE / 2, y: this.y + TILE_SIZE / 2 };
+                        const distFromTowerToEnemy = Math.sqrt(
+                            Math.pow(towerCenter.x - enemy.x, 2) +
+                            Math.pow(towerCenter.y - enemy.y, 2)
+                        );
+
+                        if (distFromTowerToEnemy < this.range) { // Only consider enemies in range
+                            let enemyProgressScore = enemy.pathIndex; // Primary sort: which path segment are they on
+
+                            // Tie-breaker: If on the same segment, who is further along?
+                            // Calculate distance remaining to the *next* waypoint. The enemy with *less* remaining distance is further along.
+                            if (enemy.pathIndex < enemy.path.length) {
+                                const targetWaypoint = enemy.path[enemy.pathIndex];
+                                const targetX = targetWaypoint.x * TILE_SIZE + TILE_SIZE / 2;
+                                const targetY = targetWaypoint.y * TILE_SIZE + TILE_SIZE / 2;
+
+                                const distToNextWaypoint = Math.sqrt(
+                                    Math.pow(enemy.x - targetX, 2) +
+                                    Math.pow(enemy.y - targetY, 2)
+                                );
+                                // Subtract distance to next waypoint: smaller distance means higher score (more progress)
+                                enemyProgressScore -= distToNextWaypoint;
+                            }
+
+
+                            if (enemyProgressScore > maxProgressAlongPath) {
+                                maxProgressAlongPath = enemyProgressScore;
+                                furthestEnemy = enemy;
+                            }
+                        }
+                    }
+                }
+                return furthestEnemy;
+            }
+
+            upgrade() {
+                let upgradeCost = 0;
+                if (this.level === 1) {
+                    upgradeCost = this.type.upgradeCostL2;
+                } else if (this.level === 2) {
+                    upgradeCost = this.type.upgradeCostL3;
+                } else {
+                    return false;
+                }
+
+                if (money >= upgradeCost) {
+                    money -= upgradeCost;
+                    this.level++;
+                    // Update stats based on level-specific values
+                    this.damage = this.type[`upgradeDamageL${this.level}`];
+                    this.range = this.type[`upgradeRangeL${this.level}`];
+                    this.fireRate = this.type[`upgradeFireRateL${this.level}`];
+                    // Only update chainCount if the tower type has it (e.g., Tesla)
+                    if (this.type.hasOwnProperty(`upgradeJumpCountL${this.level}`)) {
+                        this.chainCount = this.type[`upgradeJumpCountL${this.level}`];
+                    }
+                    // Only update splashRadius if the tower type has it and exists (e.g., Catapult)
+                    if (this.type.hasOwnProperty(`upgradeSplashRadiusL${this.level}`)) {
+                        this.splashRadius = this.type[`upgradeSplashRadiusL${this.level}`] * TILE_SIZE; // Recalculate based on TILE_SIZE
+                    }
+
+                    updateUI();
+                    // Re-show context menu to update stats display
+                    if (activeSelectedTower === this) {
+                        // Calculate position relative to gameContainer for context menu
+                        const canvasRect = canvas.getBoundingClientRect();
+                        const gameContainerRect = gameContainer.getBoundingClientRect();
+
+                        const clickX_rel_gc = (this.x + TILE_SIZE / 2 + canvasRect.left) - gameContainerRect.left;
+                        const clickY_rel_gc = (this.y + TILE_SIZE / 2 + canvasRect.top) - gameContainerRect.top;
+
+                        showTowerActionContextMenu(clickX_rel_gc, clickY_rel_gc, this); // Pass the updated tower object
+                    }
+                    // TODO: Add tower upgrade sound
+                    // playSound('upgrade');
+                    return true;
+                } else {
+                    // TODO: Add insufficient money sound
+                    // playSound('error');
+                    return false;
+                }
+            }
+
+            sell() {
+                // Simplified sell value: half of initial cost + half of total upgrade costs spent
+                let sellValue = Math.floor(this.type.cost / 2);
+                if (this.level > 1) {
+                    sellValue += Math.floor(this.type.upgradeCostL2 / 2);
+                }
+                if (this.level > 2) {
+                    sellValue += Math.floor(this.type.upgradeCostL3 / 2); // Corrected from this.type.upgradeCostL3
+                }
+                money += sellValue;
+                towers = towers.filter(t => t !== this);
+                updateUI();
+                activeSelectedTower = null; // Deselect after selling
+                hideContextMenu();
+                // TODO: Add tower sell sound
+                // playSound('sell');
+            }
+        }
+
+        class Enemy {
+            constructor(type, path) {
+                this.type = type;
+                this.health = type.health;
+                this.speed = type.speed;
+                this.reward = type.reward;
+                this.color = type.color;
+                this.size = type.size;
+                this.path = path;
+                this.pathIndex = 0;
+                // Initial position based on the first path point (which can be off-canvas)
+                this.x = path[0].x * TILE_SIZE + TILE_SIZE / 2;
+                this.y = path[0].y * TILE_SIZE + TILE_SIZE / 2;
+                this.isAlive = true;
+                this.slowedUntil = 0; // Timestamp when slow effect ends
+            }
+
+            draw() {
+                if (!this.isAlive) return;
+
+                // Draw enemy body
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.closePath();
+
+                // Draw health bar
+                const healthBarWidth = this.size * 1.5;
+                const healthBarHeight = 3;
+                const healthPercentage = this.health / this.type.health;
+                const currentHealthWidth = healthBarWidth * healthPercentage;
+
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size / 2 - healthBarHeight - 2, healthBarWidth, healthBarHeight);
+                ctx.fillStyle = healthPercentage > 0.5 ? '#0f0' : (healthPercentage > 0.2 ? '#ff0' : '#f00');
+                ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size / 2 - healthBarHeight - 2, currentHealthWidth, healthBarHeight);
+            }
+
+            update(deltaTime) {
+                if (!this.isAlive) return;
+
+                const currentSpeed = (performance.now() < this.slowedUntil) ? this.speed * (1 - this.slowFactor) : this.speed;
+
+                const targetWaypoint = this.path[this.pathIndex];
+                // Check if targetWaypoint exists before accessing its properties
+                if (!targetWaypoint) {
+                    // Enemy reached the end of the path (or went beyond the last defined waypoint)
+                    this.isAlive = false;
+                    lives--;
+                    // Trigger screen shake
+                    document.body.classList.add('shake-effect');
+                    setTimeout(() => {
+                        document.body.classList.remove('shake-effect');
+                    }, 300); // Duration of shake animation
+                    
+                    updateUI();
+                    if (lives <= 0) {
+                        gameOver(false); // Game over, lost all lives
+                    }
+                    enemiesAliveFromCurrentWave--; // Decrement live enemy count when it escapes
+                    // TODO: Add enemy escaped sound
+                    // playSound('enemyEscape');
+                    return;
+                }
+
+                const targetX = targetWaypoint.x * TILE_SIZE + TILE_SIZE / 2;
+                const targetY = targetWaypoint.y * TILE_SIZE + TILE_SIZE / 2;
+
+                const dx = targetX - this.x;
+                const dy = targetY - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < currentSpeed * deltaTime) {
+                    // Reached waypoint, move to next
+                    this.x = targetX;
+                    this.y = targetY;
+                    this.pathIndex++;
+                } else {
+                    // Move towards waypoint
+                    this.x += (dx / distance) * currentSpeed * deltaTime;
+                    this.y += (dy / distance) * currentSpeed * deltaTime;
+                }
+            }
+
+            takeDamage(damage, slowFactor = 0, slowDuration = 0) {
+                this.health -= damage;
+                // NEW: Visual effect for enemy hit
+                visualEffects.push(new VisualEffect('hit', this.x, this.y, '#FF0000', this.size / 2 + 5, 50));
+                // TODO: Add enemy hit sound
+                // playSound('enemyHit');
+
+                if (slowFactor > 0 && slowDuration > 0) {
+                    this.slowFactor = slowFactor;
+                    this.slowedUntil = performance.now() + slowDuration;
+                }
+
+                if (this.health <= 0) {
+                    this.isAlive = false;
+                    // money += this.reward; // REMOVED: Money is no longer gained from enemy kills
+                    // Add progress from enemy kill
+                    currentMoneyProgressBarFill += PROGRESS_KILL_RATE;
+                    updateUI(); // Update UI to reflect new money and lives (only for the progress bar now)
+                    enemiesAliveFromCurrentWave--; // Decrement live enemy count when killed
+                    // NEW: Visual effect for enemy death
+                    visualEffects.push(new VisualEffect('explode', this.x, this.y, this.color, this.size * 2, 200));
+                    // TODO: Add enemy death sound
+                    // playSound('enemyDeath');
+                }
+            }
+        }
+
+        class Projectile {
+            // Added speed, color, and radius parameters to the constructor
+            constructor(x, y, target, damage, slowFactor = 0, slowDuration = 0, splashRadius = 0, chainCount = 0, speed, color, radius) {
+                this.x = x;
+                this.y = y;
+                this.target = target;
+                this.damage = damage;
+                this.speed = speed; // Use passed speed
+                this.isAlive = true;
+                this.slowFactor = slowFactor;
+                this.slowDuration = slowDuration;
+                this.splashRadius = splashRadius;
+                this.chainCount = chainCount; // New property for chaining
+                this.color = color; // Use passed color
+                this.radius = radius; // Use passed radius
+                this.firedFromX = x; // Store initial position for tesla beam
+                this.firedFromY = y; // Store initial position for tesla beam
+            }
+
+            draw() {
+                if (!this.isAlive) return;
+
+                // For Tesla-like projectiles, draw a beam instead of a dot
+                if (this.chainCount > 0) {
+                    // Draw a beam from the tower to the current target
+                    ctx.beginPath();
+                    ctx.moveTo(this.firedFromX, this.firedFromY);
+                    ctx.lineTo(this.target.x, this.target.y);
+                    ctx.strokeStyle = this.color;
+                    ctx.lineWidth = this.radius / 2;
+                    ctx.stroke();
+                    ctx.closePath();
+                } else {
+                    // Draw normal projectile
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); // Use this.radius
+                    ctx.fillStyle = this.color; // Use the projectile's color
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            }
+
+            update(deltaTime) {
+                if (!this.isAlive || !this.target.isAlive) {
+                    this.isAlive = false;
+                    return;
+                }
+
+                const dx = this.target.x - this.x;
+                const dy = this.target.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < this.speed * deltaTime) {
+                    // Landed on target
+                    this.x = this.target.x; // Snap to target for accurate hit
+                    this.y = this.target.y;
+
+                    if (this.splashRadius > 0) {
+                        // Splash damage
+                        for (const enemy of enemies) {
+                            if (enemy.isAlive) {
+                                const distToSplash = Math.sqrt(
+                                    Math.pow(enemy.x - this.x, 2) +
+                                    Math.pow(enemy.y - this.y, 2)
+                                );
+                                if (distToSplash < this.splashRadius) {
+                                    enemy.takeDamage(this.damage, this.slowFactor, this.slowDuration);
+                                }
+                            }
+                        }
+                        // NEW: Add visual effect for catapult splash hit
+                        visualEffects.push(new VisualEffect('explode', this.x, this.y, this.color, this.splashRadius * 0.8, 300)); // Explosion size related to splash radius, increased duration
+                    } else if (this.chainCount > 0) {
+                        // Handle lightning chain
+                        let targetsHit = new Set(); // To track enemies hit in this single projectile's chain
+                        let currentChainTarget = this.target;
+
+                                                // Apply damage to the initial target
+                        currentChainTarget.takeDamage(this.damage, this.slowFactor, this.slowDuration);
+                        targetsHit.add(currentChainTarget);
+
+                        // NEW: Visual effect for initial Tesla hit
+                        visualEffects.push(new VisualEffect('tesla_spark', currentChainTarget.x, currentChainTarget.y, this.color, 15, 100));
+
+
+                        for (let i = 0; i < this.chainCount; i++) { // Loop for additional jumps
+                            let nextTarget = null;
+                            let minDistance = Infinity;
+                            // Find closest *unhit* enemy within a short chain distance from the current target
+                            const CHAIN_JUMP_RANGE = TILE_SIZE * 2.5; // Example: Chain can jump up to 2.5 tiles away
+
+                            for (const enemy of enemies) {
+                                if (enemy.isAlive && !targetsHit.has(enemy)) {
+                                    const dist = Math.sqrt(
+                                        Math.pow(currentChainTarget.x - enemy.x, 2) +
+                                        Math.pow(currentChainTarget.y - enemy.y, 2)
+                                    );
+                                    if (dist < CHAIN_JUMP_RANGE && dist < minDistance) {
+                                        minDistance = dist;
+                                        nextTarget = enemy;
+                                    }
+                                }
+                            }
+
+                            if (nextTarget) {
+                                // Draw lightning bolt between chained targets for a brief moment
+                                visualEffects.push(new VisualEffect('tesla_link', currentChainTarget.x, currentChainTarget.y, nextTarget.x, nextTarget.y, this.color, 150));
+                                nextTarget.takeDamage(this.damage * (1 - (i + 1) * 0.05), this.slowFactor, this.slowDuration); // 5% less damage per jump
+                                targetsHit.add(nextTarget);
+                                currentChainTarget = nextTarget; // Set next target as current for the next jump
+                            } else {
+                                break; // No more targets in range to chain to
+                            }
+                        }
+                    } else {
+                        // Single target damage
+                        this.target.takeDamage(this.damage, this.slowFactor, this.slowDuration);
+                    }
+                    this.isAlive = false;
+                } else {
+                    // Move towards target
+                    this.x += (dx / distance) * this.speed * deltaTime;
+                    this.y += (dy / distance) * this.speed * deltaTime;
+                }
+            }
+        }
+
+        // NEW: VisualEffect Class
+        class VisualEffect {
+            constructor(type, x, y, color, size, duration, x2 = null, y2 = null) {
+                this.type = type; // 'hit', 'explode', 'shoot', 'tesla_spark', 'tesla_link', 'menu_open'
+                this.x = x;
+                this.y = y;
+                this.x2 = x2; // For line effects (e.g., tesla_link)
+                this.y2 = y2; // For line effects (e.g., tesla_link)
+                this.color = color;
+                this.initialSize = size;
+                this.size = size;
+                this.duration = duration; // ms
+                this.startTime = performance.now();
+                this.isAlive = true;
+            }
+
+            draw(currentTime) {
+                const elapsed = currentTime - this.startTime;
+                if (elapsed >= this.duration) { // Changed to >= for robustness
+                    this.isAlive = false;
+                    return;
+                }
+
+                const progress = elapsed / this.duration; // 0 to 1
+                const alpha = 1 - progress; // Fade out
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                switch (this.type) {
+                    case 'hit':
+                        // Small red flash at impact point
+                        ctx.beginPath();
+                        // Ensure radius is non-negative
+                        ctx.arc(this.x, this.y, Math.max(0, this.size * (0.5 + 0.5 * progress)), 0, Math.PI * 2);
+                        ctx.fillStyle = this.color;
+                        ctx.fill();
+                        break;
+                    case 'explode':
+                        // Expanding circle/flash
+                        ctx.beginPath();
+                        // Ensure radius is non-negative, and minimum size for visibility
+                        ctx.arc(this.x, this.y, Math.max(5, this.initialSize * progress), 0, Math.PI * 2); /* Changed Math.max(0, ...) to Math.max(5, ...) for visibility */
+                        ctx.strokeStyle = this.color;
+                        ctx.lineWidth = Math.max(0, 3 * alpha); // Ensure line width is not negative
+                        ctx.stroke();
+                        break;
+                    case 'shoot':
+                        // Flash at tower barrel
+                        ctx.beginPath();
+                        // Ensure radius is non-negative
+                        ctx.arc(this.x, this.y, Math.max(0, this.initialSize * (1 - progress)), 0, Math.PI * 2);
+                        ctx.fillStyle = this.color;
+                        ctx.fill();
+                        break;
+                    case 'tesla_spark':
+                        // Small spark at target hit for Tesla
+                        ctx.beginPath();
+                        // Ensure radius is non-negative
+                        ctx.arc(this.x, this.y, Math.max(0, this.initialSize * (1 - progress)), 0, Math.PI * 2);
+                        ctx.fillStyle = this.color;
+                        ctx.fill();
+                        break;
+                    case 'tesla_link':
+                        // Lightning link between two points
+                        // Validate coordinates. If any are not finite numbers, mark effect as dead.
+                        if (!Number.isFinite(this.x) || !Number.isFinite(this.y) ||
+                            !Number.isFinite(this.x2) || !Number.isFinite(this.y2)) {
+                            this.isAlive = false; // Mark as dead if coordinates are invalid
+                            break; // Exit switch case
+                        }
+                        ctx.beginPath();
+                        ctx.moveTo(this.x, this.y);
+                        ctx.lineTo(this.x2, this.y2);
+                        ctx.strokeStyle = this.color;
+                        ctx.lineWidth = Math.max(0, 2 * alpha); // Ensure line width is not negative
+                        ctx.stroke();
+                        break;
+                    case 'menu_open':
+                        // Expanding ripple when a menu is opened
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, Math.max(0, this.initialSize * progress), 0, Math.PI * 2);
+                        ctx.strokeStyle = this.color;
+                        ctx.lineWidth = Math.max(0, 3 * (1 - progress)); // Fade out line width
+                        ctx.stroke();
+                        break;
+                }
+                ctx.restore();
+            }
+        }
+
+
+        // --- Game Functions ---
+
+        /**
+         * Initializes the game state for a given level.
+         * @param {number} levelIndex The 0-based index of the level to initialize.
+         */
+        function initializeGame(levelIndex) {
+            currentLevelIndex = levelIndex;
+            const level = LEVELS[currentLevelIndex];
+            money = level.startingMoney;
+            lives = level.startingLives;
+            initialLives = level.startingLives; // To store starting lives for percentage calculation
+            currentWaveIndex = 0;
+            towers = [];
+            enemies = [];
+            projectiles = [];
+            visualEffects = []; // Clear visual effects on new game/level
+            selectedTowerType = null;
+            gameRunning = false;
+            waveInProgress = false;
+            activeSelectedTower = null;
+            selectedGridCell = null;
+            currentMoneyProgressBarFill = 0; // Reset progress bar on new game/level
+            moneyProgressBar.style.width = '0%'; // Reset visual bar
+
+            // Reset new wave counters
+            enemiesRemainingToSpawnInCurrentWave = 0;
+            enemiesAliveFromCurrentWave = 0;
+
+            if (waveDelayTimeout) clearTimeout(waveDelayTimeout); // Clear any pending wave start
+            if (initialWaveCountdownInterval) clearInterval(initialWaveCountdownInterval); // Clear initial countdown
+            hideContextMenu();
+            hidePlacementContextMenu(); // Ensure placement menu is hidden
+            gameOverOverlay.classList.add('hidden');
+            levelSelectionOverlay.classList.add('hidden'); // Hide level selection overlay
+            startMenuOverlay.classList.add('hidden'); // Ensure start menu is hidden
+            levelInfoOverlay.classList.add('hidden'); // Ensure level info is hidden
+            
+            // Show game elements
+            gameContainer.classList.remove('hidden');
+            // gameTitle.classList.remove('hidden'); // Removed as per request
+            waveStatusDisplay.classList.remove('hidden');
+            pauseBtn.classList.remove('hidden');
+            progressBarContainer.classList.remove('hidden');
+            document.getElementById('life-bar-container').classList.remove('hidden');
+            currentLivesCount.classList.remove('hidden');
+
+            resizeGame(); // Recalculate TILE_SIZE and canvas dimensions
+            updateUI(); // Update UI immediately after setting initial game state
+            drawGame(); // Initial draw of the empty map
+                       // populateTowerSelection() call removed as per request (tower buttons removed)
+        }
+
+        /**
+         * Starts the current level's waves. Called after a level is selected.
+         */
+        function startGame() {
+            const level = LEVELS[currentLevelIndex];
+            if (!level) {
+                gameWin(); // No more levels
+                return;
+            }
+
+            // Start 5-second countdown before the first wave begins
+            let countdown = 5;
+            // Display "Wave 1 starts..." as currentWaveIndex is 0
+            waveStatusDisplay.textContent = `Wave ${currentWaveIndex + 1} starts in ${countdown} seconds...`;
+            waveStatusDisplay.classList.remove('hidden');
+
+            initialWaveCountdownInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    waveStatusDisplay.textContent = `Wave ${currentWaveIndex + 1} starts in ${countdown} seconds...`;
+                } else {
+                    clearInterval(initialWaveCountdownInterval);
+                    initialWaveCountdownInterval = null; // Clear interval ID
+                    waveStatusDisplay.textContent = `Wave ${currentWaveIndex + 1} In Progress...`;
+                    // Start the first wave immediately after countdown
+                    currentWaveIndex = 0; // Ensure we start from wave 0
+                    startNextWave();
+
+                    // Start the game loop if not already running
+                    if (!gameRunning) {
+                        gameRunning = true;
+                        animationFrameId = requestAnimationFrame(gameLoop);
+                    }
+                }
+            }, 1000);
+        }
+
+        /**
+         * Starts the next wave of enemies.
+         */
+        function startNextWave() {
+            if (waveInProgress) return; // Prevent starting multiple waves
+
+            const level = LEVELS[currentLevelIndex];
+            if (currentWaveIndex >= level.waves.length) {
+                // All waves completed for this level, handled in gameLoop
+                return;
+            }
+
+            waveInProgress = true;
+            waveStatusDisplay.textContent = `Wave ${currentWaveIndex + 1} In Progress...`;
+
+            // Correctly declare 'wave' at the beginning of the function scope
+            const wave = level.waves[currentWaveIndex];
+
+            // Reset wave counters for the new wave
+            enemiesRemainingToSpawnInCurrentWave = 0;
+            // Calculate total enemies for the current wave using the now-declared 'wave'
+            wave.forEach(group => {
+                enemiesRemainingToSpawnInCurrentWave += group.count; // Total enemies that WILL BE SPAWN
+            });
+            enemiesAliveFromCurrentWave = 0; // Enemies currently alive on the map from this wave
+
+            // Schedule enemies for the current wave
+            wave.forEach(group => {
+                for (let i = 0; i < group.count; i++) {
+                    const spawnDelay = i * group.delay;
+                    setTimeout(() => {
+                        enemies.push(new Enemy(ENEMY_TYPES[group.type], level.path));
+                        enemiesAliveFromCurrentWave++; // This enemy is now ALIVE and ON THE MAP
+                        enemiesRemainingToSpawnInCurrentWave--; // This enemy has now FINISHED SPAWNING
+                    }, spawnDelay);
+                }
+            });
+            // TODO: Add wave start sound
+            // playSound('waveStart');
+            updateUI(); // Update UI to show correct wave number
+        }
+
+        /**
+         * The main game loop, updates game state and draws elements.
+         * @param {DOMHighResTimeStamp} currentTime The current time provided by requestAnimationFrame.
+         */
+        function gameLoop(currentTime) {
+            if (!gameRunning) return;
+
+            const deltaTime = currentTime - lastUpdateTime;
+            lastUpdateTime = currentTime;
+
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT); // Clear canvas
+            drawGame(); // Redraw static elements
+
+            // Update and draw enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                enemy.update(deltaTime);
+                enemy.draw();
+                if (!enemy.isAlive) {
+                    enemies.splice(i, 1); // Remove dead enemies
+                }
+            }
+
+            // Update and draw towers
+            towers.forEach(tower => {
+                tower.update(deltaTime);
+                tower.draw();
+            });
+
+            // Update and draw projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const projectile = projectiles[i];
+                projectile.update(deltaTime);
+                projectile.draw();
+                if (!projectile.isAlive) {
+                    projectiles.splice(i, 1); // Remove dead projectiles
+                }
+            }
+
+            // NEW: Update and draw visual effects
+            for (let i = visualEffects.length - 1; i >= 0; i--) {
+                const effect = visualEffects[i];
+                effect.draw(currentTime);
+                if (!effect.isAlive) {
+                    visualEffects.splice(i, 1);
+                }
+            }
+
+            // Update progress bar by time - now always progresses if game is running
+            // Ensure this runs even if waves are not in progress (during countdowns)
+            currentMoneyProgressBarFill += PROGRESS_TIME_RATE * (deltaTime / 1000);
+
+            // Check if progress bar is full and grant money
+            while (currentMoneyProgressBarFill >= 100) { // Use while loop to handle multiple fills from one enemy kill/time tick
+                money += MONEY_PER_BAR;
+                currentMoneyProgressBarFill -= 100;
+                updateUI(); // Update UI to show new money
+                // TODO: Add money gain sound
+                // playSound('money');
+            }
+            // Update progress bar visual (removed transition in CSS for instant snap)
+            moneyProgressBar.style.width = `${currentMoneyProgressBarFill}%`;
+
+
+            // Check for end of wave - now checks if all enemies are spawned AND all spawned enemies are defeated
+            // Added debugging logs here for visibility
+            // console.log('Wave check:', {
+            //     waveInProgress,
+            //     enemiesRemainingToSpawnInCurrentWave,
+            //     enemiesAliveFromCurrentWave,
+            //     projectilesLength: projectiles.length
+            // });
+
+            if (waveInProgress && enemiesRemainingToSpawnInCurrentWave === 0 && enemiesAliveFromCurrentWave === 0 && projectiles.length === 0) {
+                waveInProgress = false;
+                currentWaveIndex++;
+                const level = LEVELS[currentLevelIndex];
+
+                // Check if all waves for this level are completed
+                if (currentWaveIndex < level.waves.length) {
+                    // Next wave in 5 seconds (changed from 10 seconds)
+                    let countdown = 5;
+                    // Correctly display next wave number (currentWaveIndex has already incremented)
+                    waveStatusDisplay.textContent = `Next Wave ${currentWaveIndex + 1} in ${countdown} seconds...`;
+                    if (waveDelayTimeout) clearTimeout(waveDelayTimeout); // Clear previous if any
+                    waveDelayTimeout = setInterval(() => {
+                        countdown--;
+                        if (countdown > 0) {
+                            waveStatusDisplay.textContent = `Next Wave ${currentWaveIndex + 1} in ${countdown} seconds...`;
+                        } else {
+                            clearInterval(waveDelayTimeout);
+                            waveDelayTimeout = null; // Clear interval ID
+                            waveStatusDisplay.textContent = `Starting Wave ${currentWaveIndex + 1}...`;
+                            startNextWave();
+                        }
+                    }, 1000);
+                } else {
+                    // All waves completed for this level
+                    if (currentLevelIndex + 1 < LEVELS.length) {
+                        // Move to next level and save progress
+                        // Unlock the next level (currentLevelIndex is the completed level, so unlock currentLevelIndex + 1)
+                        maxUnlockedLevelIndex = Math.max(maxUnlockedLevelIndex, currentLevelIndex + 1);
+                        saveGameProgress(); // Save the updated max unlocked level
+
+                        waveStatusDisplay.textContent = 'Level Complete!';
+                        // TODO: Add level complete sound
+                        // playSound('levelComplete');
+                        setTimeout(() => {
+                            // After completing a level, go back to level selection
+                            // Initialize for the next level so it's ready if selected
+                            initializeGame(currentLevelIndex + 1);
+                            showLevelSelection(); // Show level selection screen
+                        }, 3500);
+                    } else {
+                        // All levels completed, game won!
+                        gameWin();
+                    }
+                }
+            }
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        /**
+         * Handles game over state, either win or lose.
+         * @param {boolean} win True if the game was won, false if lost.
+         */
+        function gameOver(win) {
+            gameRunning = false;
+            cancelAnimationFrame(animationFrameId);
+            if (waveDelayTimeout) clearTimeout(waveDelayTimeout); // Clear any pending wave start
+            if (initialWaveCountdownInterval) clearInterval(initialWaveCountdownInterval); // Clear initial countdown
+
+                        gameOverOverlay.classList.remove('hidden');
+            waveStatusDisplay.classList.add('hidden'); // Hide wave status display on game over
+            pauseBtn.classList.add('hidden'); // Hide pause button on game over
+            gameTitle.classList.add('hidden'); // Hide game title
+            progressBarContainer.classList.add('hidden'); // Hide progress bar
+            document.getElementById('life-bar-container').classList.add('hidden'); // Hide life bar
+            currentLivesCount.classList.add('hidden'); // Hide lives count
+            gameContainer.classList.add('hidden'); // Hide game container
+            controlPanel.classList.add('hidden'); // Hide control panel
+            levelInfoOverlay.classList.add('hidden'); // Ensure level info is hidden
+
+
+            if (win) {
+                gameOverTitle.textContent = 'You Win!';
+                gameOverTitle.classList.add('win');
+                gameOverMessage.textContent = `Congratulations! You defended the path through all levels!`;
+                // TODO: Add game win sound
+                // playSound('gameWin');
+            } else {
+                gameOverTitle.textContent = 'Game Over!';
+                gameOverTitle.classList.remove('win');
+                gameOverMessage.textContent = `Your lives ran out. The path was breached!`;
+                // TODO: Add game over sound
+                // playSound('gameOver');
+            }
+
+            restartGameBtn.onclick = () => {
+                gameOverOverlay.classList.add('hidden');
+                showLevelSelection(); // Go back to level selection after game over
+            };
+        }
+
+        function gameWin() {
+            gameOver(true); // Call gameOver with win = true
+        }
+
+        /**
+         * Toggles the game pause state.
+         */
+        function togglePause() {
+            if (gameRunning) {
+                gameRunning = false;
+                cancelAnimationFrame(animationFrameId);
+                pauseOverlay.classList.remove('hidden');
+            } else {
+                gameRunning = true;
+                animationFrameId = requestAnimationFrame(gameLoop);
+                pauseOverlay.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Updates all UI elements with current game data.
+         */
+        function updateUI() {
+            moneyDisplay.textContent = `$${money}`;
+            levelDisplay.textContent = currentLevelIndex + 1;
+            const level = LEVELS[currentLevelIndex];
+            // Display wave progress as current wave / total waves in level (simplified for clarity)
+            waveDisplay.textContent = `${currentWaveIndex + 1}/${level.waves.length}`;
+
+            // Update life bar visual
+            // Ensure lifePercentage doesn't go below 0
+            const lifePercentage = Math.max(0, (lives / initialLives) * 100);
+            lifeBarFill.style.width = `${lifePercentage}%`;
+
+            // Update current lives count display
+            currentLivesCount.textContent = lives;
+        }
+
+        // --- Game Progress Saving/Loading ---
+        function saveGameProgress() {
+            // Save the highest unlocked level index
+            localStorage.setItem(LAST_LEVEL_KEY, JSON.stringify(maxUnlockedLevelIndex));
+        }
+
+        function loadGameProgress() {
+            const savedLevel = localStorage.getItem(LAST_LEVEL_KEY);
+            if (savedLevel) {
+                maxUnlockedLevelIndex = JSON.parse(savedLevel);
+            } else {
+                maxUnlockedLevelIndex = 0; // Default to level 0 unlocked
+            }
+        }
+
+        /**
+         * Displays the level selection screen, populating buttons based on unlocked levels.
+         */
+        function showLevelSelection() {
+            console.log('showLevelSelection called!'); // Debug log
+            loadGameProgress(); // Load max unlocked level on showing selection
+
+            levelButtonsContainer.innerHTML = ''; // Clear previous buttons
+            LEVELS.forEach((level, index) => {
+                const levelBtn = document.createElement('button');
+                levelBtn.className = 'level-btn-square'; // Apply new square button class
+                // Create a div for content to correctly center text within the square button
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'content';
+                contentDiv.textContent = `${index + 1}`; // Only show the level number
+                levelBtn.appendChild(contentDiv);
+
+                levelBtn.dataset.levelIndex = index;
+
+                if (index > maxUnlockedLevelIndex) {
+                    levelBtn.disabled = true;
+                    // Classes are applied via CSS for .level-btn-square:disabled
+                } else {
+                    levelBtn.onclick = () => {
+                        levelSelectionOverlay.classList.add('hidden'); // Hide level selection
+                        showLevelInfo(index); // Show level info before starting game
+                    };
+                }
+                levelButtonsContainer.appendChild(levelBtn);
+            });
+            levelSelectionOverlay.classList.remove('hidden'); // Show the level selection screen
+            gameOverOverlay.classList.add('hidden'); // Ensure game over overlay is hidden
+            waveStatusDisplay.classList.add('hidden'); // Hide wave status display when selecting level
+            pauseBtn.classList.add('hidden'); // Hide pause button when in level selection
+            startMenuOverlay.classList.add('hidden'); // Ensure start menu is hidden
+            gameContainer.classList.add('hidden'); // Hide game container
+            gameTitle.classList.add('hidden'); // Hide game title
+            progressBarContainer.classList.add('hidden'); // Hide progress bar
+            document.getElementById('life-bar-container').classList.add('hidden'); // Hide life bar
+            currentLivesCount.classList.add('hidden'); // Hide lives count
+            controlPanel.classList.add('hidden'); // Hide control panel
+            levelInfoOverlay.classList.add('hidden'); // Ensure level info is hidden
+        }
+
+        /**
+         * Helper function to generate SVG for a tower.
+         * @param {string} typeKey The key of the tower type (e.g., 'BASIC', 'TESLA').
+         * @param {number} size The desired size (width/height) of the SVG.
+         * @returns {string} The SVG string.
+         */
+        function createTowerSVG(typeKey, size) {
+            const type = TOWER_TYPES[typeKey];
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const baseRadius = size * 0.35; // Corresponds to TILE_SIZE * 0.7 / 2
+
+            let svgContent = '';
+            // Base circle
+            svgContent += `<circle cx="${centerX}" cy="${centerY}" r="${baseRadius}" fill="${type.color}" stroke="#fff" stroke-width="2"/>`;
+
+            // Level indicators (simplified for SVG preview)
+            if (typeKey === 'BASIC') {
+                // Basic tower has no special level visual in preview
+            } else if (typeKey === 'TESLA') {
+                // Tesla tower: add a lightning bolt
+                const lightningColor = '#00BFFF';
+                svgContent += `
+                    <path d="M${centerX - 8},${centerY + 5} L${centerX + 2},${centerY - 10} L${centerX + 8},${centerY - 5} L${centerX - 2},${centerY + 10} Z" fill="${lightningColor}" stroke="${lightningColor}" stroke-width="1"/>
+                `;
+            } else if (typeKey === 'CATAPULT') {
+                // Catapult tower: add a rock
+                const rockColor = '#8B4513';
+                svgContent += `
+                    <circle cx="${centerX + 5}" cy="${centerY - 5}" r="${baseRadius * 0.4}" fill="${rockColor}" stroke="#fff" stroke-width="1"/>
+                `;
+            }
+
+            return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${svgContent}</svg>`;
+        }
+
+        /**
+         * Helper function to generate SVG for an enemy.
+         * @param {string} typeKey The key of the enemy type (e.g., 'NORMAL', 'FAST', 'TANK').
+         * @param {number} size The desired size (width/height) of the SVG.
+         * @returns {string} The SVG string.
+         */
+        function createEnemySVG(typeKey, size) {
+            const type = ENEMY_TYPES[typeKey];
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const radius = type.size / 2; // Use enemy's actual size for proportion
+
+            let svgContent = '';
+            // Enemy body (circle)
+            svgContent += `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="${type.color}" stroke="#fff" stroke-width="1"/>`;
+
+            // Add simple health bar representation (optional, but good for consistency)
+            const healthBarWidth = radius * 1.5;
+            const healthBarHeight = 3;
+            const healthPercentage = 1; // Assume full health for preview
+            const currentHealthWidth = healthBarWidth * healthPercentage;
+
+            svgContent += `
+                <rect x="${centerX - healthBarWidth / 2}" y="${centerY - radius - healthBarHeight - 2}" width="${healthBarWidth}" height="${healthBarHeight}" fill="#333"/>
+                <rect x="${centerX - healthBarWidth / 2}" y="${centerY - radius - healthBarHeight - 2}" width="${currentHealthWidth}" height="${healthBarHeight}" fill="#0f0"/>
+            `;
+
+            return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${svgContent}</svg>`;
+        }
+
+
+        /**
+         * Shows the level information screen before starting a level.
+         * @param {number} levelIndex The 0-based index of the level to show info for.
+         */
+        function showLevelInfo(levelIndex) {
+            currentLevelIndex = levelIndex; // Set current level index
+            const level = LEVELS[currentLevelIndex];
+
+            levelInfoTitle.textContent = `Level ${currentLevelIndex + 1}: ${level.name}`;
+            levelInfoFeatures.innerHTML = ''; // Clear previous features
+
+            if (level.newFeatures && level.newFeatures.length > 0) {
+                level.newFeatures.forEach(feature => {
+                    const listItem = document.createElement('li');
+                    
+                    const iconContainer = document.createElement('div');
+                    iconContainer.className = 'feature-icon-svg';
+
+                    if (feature.type === 'tower') {
+                        iconContainer.innerHTML = createTowerSVG(feature.key, 40); // Size 40 for preview
+                    } else if (feature.type === 'enemy') {
+                        iconContainer.innerHTML = createEnemySVG(feature.key, 40); // Size 40 for preview
+                    }
+                    listItem.appendChild(iconContainer);
+
+                    const textSpan = document.createElement('span');
+                    textSpan.innerHTML = feature.text; // Use innerHTML to allow for strong tags
+                    listItem.appendChild(textSpan);
+
+                    levelInfoFeatures.appendChild(listItem);
+                });
+            } else {
+                const listItem = document.createElement('li');
+                listItem.textContent = "No new features for this level. Good luck!";
+                levelInfoFeatures.appendChild(listItem);
+            }
+
+            // Set initial position for slide-in, then show and trigger transition
+            levelInfoOverlay.style.transform = 'translateY(100%)'; // Start off-screen
+            levelInfoOverlay.classList.remove('hidden'); // Make it visible
+            // Force reflow to ensure the initial transform is applied before the transition starts
+            levelInfoOverlay.offsetWidth; 
+            levelInfoOverlay.style.transform = 'translateY(0%)'; // Trigger slide-in animation
+
+            levelInfoOkBtn.onclick = () => {
+                // Trigger slide-out animation
+                levelInfoOverlay.style.transform = 'translateY(100%)'; // Slide out
+                levelInfoOverlay.addEventListener('transitionend', function handler() {
+                    levelInfoOverlay.classList.add('hidden'); // Hide after animation
+                    levelInfoOverlay.removeEventListener('transitionend', handler); // Remove listener
+                    initializeGame(currentLevelIndex); // Initialize game with the selected level
+                    startGame(); // Start the game (countdown)
+                }, { once: true }); // Use { once: true } for a single-use listener
+            };
+
+            // Ensure all other main overlays are hidden
+            startMenuOverlay.classList.add('hidden');
+            levelSelectionOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            pauseOverlay.classList.add('hidden');
+            gameContainer.classList.add('hidden');
+            gameTitle.classList.add('hidden');
+            waveStatusDisplay.classList.add('hidden');
+            pauseBtn.classList.add('hidden');
+            progressBarContainer.classList.add('hidden');
+            document.getElementById('life-bar-container').classList.add('hidden');
+            currentLivesCount.classList.add('hidden');
+            controlPanel.classList.add('hidden');
+        }
+
+
+        // --- Drawing Functions ---
+        function drawGame() {
+            drawGrid();
+            drawPath();
+            drawTowerPlacementSpots(); // This function now draws circles
+            if (selectedGridCell) {
+                drawPotentialTowerPlacement(selectedGridCell.x, selectedGridCell.y); // This function now draws circles
+            }
+            // Active selected tower range is drawn within its own draw method
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#2d3748'; // Darker gray for grid lines
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= MAX_GRID_COLS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * TILE_SIZE, 0);
+                ctx.lineTo(i * TILE_SIZE, CANVAS_HEIGHT);
+                ctx.stroke();
+            }
+            // Corrected loop for horizontal lines to cover full width
+            for (let i = 0; i <= MAX_GRID_ROWS; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * TILE_SIZE);
+                ctx.lineTo(CANVAS_WIDTH, i * TILE_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        function drawPath() {
+            const path = LEVELS[currentLevelIndex].path;
+            ctx.strokeStyle = '#60a5fa'; // Blue for path
+            ctx.lineWidth = TILE_SIZE * 0.6; // Wider path
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            // Start at the exact first point (can be off-canvas)
+            ctx.moveTo(path[0].x * TILE_SIZE + TILE_SIZE / 2, path[0].y * TILE_SIZE + TILE_SIZE / 2);
+            for (let i = 1; i < path.length; i++) {
+                // Draw line to the center of each subsequent grid cell
+                ctx.lineTo(path[i].x * TILE_SIZE + TILE_SIZE / 2, path[i].y * TILE_SIZE + TILE_SIZE / 2);
+            }
+            ctx.stroke();
+        }
+
+        // Modified to draw circles matching tower's visual size
+        function drawTowerPlacementSpots() {
+            const spots = LEVELS[currentLevelIndex].towerPlacementSpots;
+            spots.forEach(spot => {
+                const cx = spot.x * TILE_SIZE + TILE_SIZE / 2;
+                const cy = spot.y * TILE_SIZE + TILE_SIZE / 2;
+                const radius = TILE_SIZE * 0.7; // Match tower's visual radius (from Tower.draw())
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(100, 116, 139, 0.3)'; // Slate-500 with transparency
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(100, 116, 139, 0.6)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.closePath();
+            });
+        }
+
+        // Modified to draw circles matching tower's visual size
+        function drawPotentialTowerPlacement(gridX, gridY) {
+            const cx = gridX * TILE_SIZE + TILE_SIZE / 2;
+            const cy = gridY * TILE_SIZE + TILE_SIZE / 2;
+            const radius = TILE_SIZE * 0.7; // Match tower's visual radius
+
+            const isValidSpot = LEVELS[currentLevelIndex].towerPlacementSpots.some(
+                spot => spot.x === gridX && spot.y === gridY
+            );
+            const isOccupied = towers.some(tower => tower.gridX === gridX && tower.gridY === gridY);
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            if (isValidSpot && !isOccupied) {
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.4)'; // Green overlay for valid
+            } else {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.4)'; // Red overlay for invalid
+            }
+            ctx.fill();
+            ctx.closePath();
+        }
+
+
+        // --- Context Menus ---
+        let towerActionContextMenu = null; // For upgrade/sell
+        let towerPlacementContextMenu = null; // For choosing tower type to build
+
+        function showTowerActionContextMenu(xRelGc, yRelGc, tower) { // xRelGc, yRelGc are relative to gameContainer
+            hideContextMenu();
+            towerActionContextMenu = document.createElement('div');
+            towerActionContextMenu.className = 'context-menu';
+            // Position relative to gameContainer
+            towerActionContextMenu.style.left = `${xRelGc + 10}px`; // Offset by 10px to avoid directly under finger/cursor
+            towerActionContextMenu.style.top = `${yRelGc + 10}px`;
+
+            // NEW: Buttons container for Upgrade/Sell
+            const actionButtonsContainer = document.createElement('div');
+            actionButtonsContainer.className = 'tower-action-buttons';
+
+            // Upgrade Button
+            const upgradeCost = tower.level === 1 ? tower.type.upgradeCostL2 : (tower.level === 2 ? tower.type.upgradeCostL3 : 'Max');
+            const upgradeBtn = document.createElement('button');
+            upgradeBtn.className = 'action-btn-square';
+            // Ensure cost and label are inside .content div for proper centering
+            upgradeBtn.innerHTML = `<div class="content"><span class="cost-display">$${upgradeCost}</span><span class="label-display">Upgrade</span></div>`;
+            upgradeBtn.disabled = tower.level >= 3; // Disable if max level
+            upgradeBtn.onclick = (e) => {
+                e.stopPropagation(); // Prevent canvas click from closing menu
+                tower.upgrade();
+            };
+            actionButtonsContainer.appendChild(upgradeBtn);
+
+            // Sell Button
+            let sellValue = Math.floor(tower.type.cost / 2);
+            if (tower.level > 1) {
+                sellValue += Math.floor(tower.type.upgradeCostL2 / 2);
+            }
+            if (tower.level > 2) {
+                sellValue += Math.floor(this.type.upgradeCostL3 / 2); // Corrected from this.type.upgradeCostL3
+            }
+            const sellBtn = document.createElement('button');
+            sellBtn.className = 'action-btn-square';
+            // Ensure cost and label are inside .content div for proper centering
+            sellBtn.innerHTML = `<div class="content"><span class="cost-display">$${sellValue}</span><span class="label-display">Sell</span></div>`;
+            sellBtn.onclick = (e) => {
+                e.stopPropagation(); // Prevent canvas click from closing menu
+                tower.sell();
+                hideContextMenu();
+            };
+            actionButtonsContainer.appendChild(sellBtn);
+
+            towerActionContextMenu.appendChild(actionButtonsContainer); // Append the buttons container
+            gameContainer.appendChild(towerActionContextMenu);
+
+                        // NEW: Visual effect for opening tower action menu
+            visualEffects.push(new VisualEffect('menu_open', xRelGc, yRelGc, '#81e6d9', 30, 200));
+        }
+
+        function showTowerPlacementContextMenu(xRelGc, yRelGc, gridX, gridY) { // xRelGc, yRelGc are relative to gameContainer
+            hideContextMenu();
+            towerPlacementContextMenu = document.createElement('div');
+            towerPlacementContextMenu.className = 'context-menu';
+            // Position relative to gameContainer, slightly offset from clicked point
+            towerPlacementContextMenu.style.left = `${xRelGc + 10}px`;
+            towerPlacementContextMenu.style.top = `${yRelGc + 10}px`;
+
+            // Add a title or instruction
+            const title = document.createElement('div');
+            title.className = 'text-gray-300 text-sm mb-1';
+            title.textContent = 'Build Tower:';
+            towerPlacementContextMenu.appendChild(title);
+
+            // NEW: Buttons container for tower types
+            const towerTypeButtonsContainer = document.createElement('div');
+            towerTypeButtonsContainer.className = 'placement-context-menu-buttons';
+            towerPlacementContextMenu.appendChild(towerTypeButtonsContainer);
+
+
+            for (const key in TOWER_TYPES) {
+                const type = TOWER_TYPES[key];
+                // Check if tower is available at the current level index
+                // Tesla available from Level 2 (index 1)
+                if (key === 'TESLA' && currentLevelIndex < 1) {
+                    continue;
+                }
+                // Catapult available from Level 4 (index 3)
+                if (key === 'CATAPULT' && currentLevelIndex < 3) {
+                    continue;
+                }
+
+                const buildBtn = document.createElement('button');
+                buildBtn.className = 'action-btn-square'; // Use the same square button style
+                // Populate with cost and name
+                buildBtn.innerHTML = `<div class="content"><span class="cost-display">$${type.cost}</span><span class="label-display">${type.name}</span></div>`;
+                
+                buildBtn.disabled = money < type.cost; // Disable if not enough money
+
+                buildBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    buildTower(key, gridX, gridY);
+                    hidePlacementContextMenu();
+                };
+                towerTypeButtonsContainer.appendChild(buildBtn); // Append to the new container
+            }
+            gameContainer.appendChild(towerPlacementContextMenu);
+
+            // NEW: Visual effect for opening tower placement menu
+            visualEffects.push(new VisualEffect('menu_open', xRelGc, yRelGc, '#6366f1', 30, 200));
+        }
+
+        function hideContextMenu() {
+            if (towerActionContextMenu) {
+                towerActionContextMenu.remove();
+                towerActionContextMenu = null;
+            }
+            if (towerPlacementContextMenu) {
+                towerPlacementContextMenu.remove();
+                towerPlacementContextMenu = null;
+            }
+        }
+
+        function hidePlacementContextMenu() {
+            if (towerPlacementContextMenu) {
+                towerPlacementContextMenu.remove();
+                towerPlacementContextMenu = null;
+            }
+        }
+
+
+        function buildTower(typeKey, gridX, gridY) {
+            const type = TOWER_TYPES[typeKey];
+            if (money >= type.cost) {
+                money -= type.cost;
+                // Get the type object using TOWER_TYPES[typeKey]
+                towers.push(new Tower(gridX * TILE_SIZE, gridY * TILE_SIZE, TOWER_TYPES[typeKey]));
+                updateUI();
+                // TODO: Add tower placement sound
+                // playSound('placeTower');
+            } else {
+                // No message box now
+                // TODO: Add insufficient money sound
+                // playSound('error');
+            }
+            selectedGridCell = null; // Clear selected cell after attempt to build
+            drawGame(); // Redraw to clear highlight
+        }
+
+        // --- Sound Functions (Placeholder) ---
+        // TODO: Implement actual sound playback using Web Audio API or Tone.js
+        function playSound(type) {
+            // This is a placeholder function.
+            // For actual sound:
+            // 1. Load audio files (e.g., using new Audio() or fetch API for arraybuffer).
+            // 2. Play them at the appropriate time.
+            // Example for simple beep (requires AudioContext):
+            /*
+            if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
+                const audioContext = new (AudioContext || webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                oscillator.type = 'sine'; // or 'square', 'sawtooth', 'triangle'
+                switch(type) {
+                    case 'shoot': oscillator.frequency.setValueAtTime(440, audioContext.currentTime); break;
+                    case 'enemyHit': oscillator.frequency.setValueAtTime(220, audioContext.currentTime); break;
+                    case 'enemyDeath': oscillator.frequency.setValueAtTime(110, audioContext.currentTime); break;
+                    // ... other sounds
+                    default: return;
+                }
+                oscillator.connect(audioContext.destination);
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.1); // Play for 0.1 seconds
+            }
+            */
+            // console.log(`Playing sound: ${type}`); // For debugging
+        }
+
+
+        // --- Event Handlers ---
+        function resizeGame() {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+
+            // Ensure container has valid positive dimensions before calculating TILE_SIZE
+            if (containerWidth <= 0 || containerHeight <= 0) {
+                // Fallback to a reasonable default if container is not rendered or has zero dimensions.
+                // This prevents TILE_SIZE from becoming 0, negative, NaN, or Infinity.
+                TILE_SIZE = 20; // Default tile size in pixels
+                CANVAS_WIDTH = TILE_SIZE * MAX_GRID_COLS;
+                CANVAS_HEIGHT = TILE_SIZE * MAX_GRID_ROWS;
+            } else {
+                TILE_SIZE = Math.min(
+                    containerWidth / MAX_GRID_COLS,
+                    containerHeight / MAX_GRID_ROWS
+                );
+                // Also ensure TILE_SIZE doesn't become too small due to floating point precision or tiny window.
+                const MIN_TILE_SIZE = 5; // Set a practical minimum tile size
+                TILE_SIZE = Math.max(TILE_SIZE, MIN_TILE_SIZE);
+
+                CANVAS_WIDTH = TILE_SIZE * MAX_GRID_COLS;
+                CANVAS_HEIGHT = TILE_SIZE * MAX_GRID_ROWS;
+            }
+
+            canvas.width = CANVAS_WIDTH;
+            canvas.height = CANVAS_HEIGHT;
+
+            // Re-center the canvas within its container if it doesn't fill it
+            canvas.style.maxWidth = `${CANVAS_WIDTH}px`;
+            canvas.style.maxHeight = `${CANVAS_HEIGHT}px`;
+
+            // Update tower positions and splashRadius based on new TILE_SIZE
+            towers.forEach(tower => {
+                tower.x = tower.gridX * TILE_SIZE;
+                tower.y = tower.gridY * TILE_SIZE;
+                // Recalculate splashRadius if the tower type has it
+                if (tower.type.hasOwnProperty('splashRadiusTiles')) {
+                    tower.splashRadius = tower.type.splashRadiusTiles * TILE_SIZE;
+                }
+                // Also update splashRadius for upgraded towers
+                if (tower.level > 1 && tower.type.hasOwnProperty(`upgradeSplashRadiusL${tower.level}`)) {
+                    tower.splashRadius = tower.type[`upgradeSplashRadiusL${tower.level}`] * TILE_SIZE;
+                }
+            });
+
+            // If game is running, redraw everything to adjust to new size
+            if (gameRunning) {
+                drawGame();
+                towers.forEach(t => t.draw());
+                enemies.forEach(e => e.draw());
+                projectiles.forEach(p => p.draw());
+            } else {
+                // If not running, just draw the initial empty map
+                drawGame();
+            }
+        }
+
+
+        canvas.addEventListener('click', (event) => {
+            event.preventDefault(); // Prevent default browser actions for clicks
+            hideContextMenu(); // Always hide any context menu on canvas click
+            activeSelectedTower = null; // Deselect any active tower
+
+            const rect = canvas.getBoundingClientRect(); // Canvas rect (relative to viewport)
+            const gameContainerRect = gameContainer.getBoundingClientRect(); // Game container rect (relative to viewport)
+
+            // Mouse coordinates relative to the canvas drawing area (scaled)
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (event.clientX - rect.left) * scaleX;
+            const mouseY = (event.clientY - rect.top) * scaleY;
+
+            // Mouse coordinates relative to the gameContainer for context menu positioning
+            const clickX_rel_gc = event.clientX - gameContainerRect.left;
+            const clickY_rel_gc = event.clientY - gameContainerRect.top;
+
+
+            const gridX = Math.floor(mouseX / TILE_SIZE);
+            const gridY = Math.floor(mouseY / TILE_SIZE);
+
+            selectedGridCell = { x: gridX, y: gridY }; // Update selected grid cell for drawing highlight
+
+            // Check if clicking on an existing tower
+            const clickedTower = towers.find(t =>
+                // Check if click is within the visual bounds of the tower circle
+                Math.sqrt(Math.pow((t.x + TILE_SIZE / 2) - mouseX, 2) + Math.pow((t.y + TILE_SIZE / 2) - mouseY, 2)) < (TILE_SIZE * 0.7)
+            );
+
+            if (clickedTower) {
+                activeSelectedTower = clickedTower;
+                showTowerActionContextMenu(clickX_rel_gc, clickY_rel_gc, clickedTower);
+                // Visual effect for opening tower action menu is now inside showTowerActionContextMenu
+            } else {
+                // Check if clicking on a valid, empty placement spot
+                const isValidSpot = LEVELS[currentLevelIndex].towerPlacementSpots.some(
+                    spot => spot.x === gridX && spot.y === gridY
+                );
+                const isOccupied = towers.some(tower => tower.gridX === gridX && tower.gridY === gridY);
+
+                if (isValidSpot && !isOccupied) {
+                    showTowerPlacementContextMenu(clickX_rel_gc, clickY_rel_gc, gridX, gridY);
+                    // Visual effect for opening tower placement menu is now inside showTowerPlacementContextMenu
+                } else if (isOccupied) {
+                    // No message box now
+                } else {
+                    // No message box now
+                }
+            }
+            drawGame(); // Redraw after click to update selections/highlights
+        });
+
+
+        // Handle touch events for mobile
+        canvas.addEventListener('touchstart', (event) => {
+            event.preventDefault(); // Prevent scrolling/zooming
+            canvas.dispatchEvent(new MouseEvent('click', {
+                clientX: event.touches[0].clientX,
+                clientY: event.touches[0].clientY
+            }));
+        }, { passive: false }); // Use passive: false to allow preventDefault
+
+
+        // Initial setup (modified to show start menu first)
+        window.addEventListener('resize', resizeGame);
+        window.onload = () => {
+            resizeGame();
+            
+            // Show start menu and hide all other game elements initially
+            startMenuOverlay.classList.remove('hidden');
+            levelSelectionOverlay.classList.add('hidden');
+            gameOverOverlay.classList.add('hidden');
+            pauseOverlay.classList.add('hidden');
+            gameContainer.classList.add('hidden');
+            gameTitle.classList.add('hidden'); // Ensure it's hidden from the start
+            waveStatusDisplay.classList.add('hidden');
+            pauseBtn.classList.add('hidden');
+            progressBarContainer.classList.add('hidden');
+            document.getElementById('life-bar-container').classList.add('hidden');
+            currentLivesCount.classList.add('hidden');
+            controlPanel.classList.add('hidden');
+            levelInfoOverlay.classList.add('hidden'); // Ensure level info is hidden initially
+            levelInfoOverlay.style.transform = 'translateY(100%)'; // Set initial position for transition
+
+
+            // Add event listeners for start menu button
+            startGameBtn.onclick = () => {
+                console.log('Start Game button clicked!'); // Debug log
+                startMenuOverlay.classList.add('hidden');
+                showLevelSelection(); // Go to level selection when start game is clicked
+            };
+
+            // Add event listeners for pause menu buttons
+            pauseBtn.onclick = togglePause;
+            resumeBtn.onclick = togglePause;
+            exitGameBtn.onclick = () => {
+                pauseOverlay.classList.add('hidden');
+                showLevelSelection(); // Go to level selection
+            };
+        };
+
+        // PWA: Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered! Scope:', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('Service Worker registration failed:', err);
+                    });
+            });
+        }
+    </script>
+
+       
+</body>
+</html>
+            
